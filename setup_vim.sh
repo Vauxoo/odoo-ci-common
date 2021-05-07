@@ -6,6 +6,9 @@ set -e
 # We need some functions from the common repository
 source /usr/share/odoo-ci-common/library.sh
 
+# Let's add the vim ppa for having a more up-to-date vim
+add_custom_aptsource "${VIM_PPA_REPO}" "${VIM_PPA_KEY}"
+
 # Upgrade & configure vim
 apt install vim --only-upgrade
 # Get vim version
