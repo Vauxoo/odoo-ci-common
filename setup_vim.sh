@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Upgrade & configure vim
 apt install vim --only-upgrade
 # Get vim version
