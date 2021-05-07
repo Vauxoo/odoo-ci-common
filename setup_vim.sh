@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Exit on error
+set -e
+
+# We need some functions from the common repository
+source /usr/share/odoo-ci-common/library.sh
+
 # Upgrade & configure vim
 apt install vim --only-upgrade
 # Get vim version
