@@ -227,7 +227,7 @@ collect_pip_dependencies(){
     python${TRAVIS_PYTHON_VERSION} -m pip install ${PIP_OPTS} ${DEPENDENCIES} future
 
     for REQ in $( find ${TEMPDIR} -type f -iname "requirements.txt" ); do
-        python${TRAVIS_PYTHON_VERSION} /usr/share/vx-docker-internal/gen_pip_deps ${REQ} ${DEPENDENCIES_FILE}
+        python${TRAVIS_PYTHON_VERSION} /usr/share/odoo-ci-common/gen_pip_deps ${REQ} ${DEPENDENCIES_FILE}
     done
 }
 
