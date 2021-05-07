@@ -200,6 +200,37 @@ geoip_install(){
     rm -rf "${DIR}"
 }
 
+clean_requirements(){
+    python -c "
+import re
+req = open('$1', 'r').read()
+req = list(set(req.split('\n')))
+req2 = []
+regex = r'([a-z](([0-9][a-z])|([a-z]+)))(((==|>=)[0-9].+)|'')'
+for i in req:
+    match = re.match(regex, i, re.I)
+    if match:
+        req2.append(i)
+open('$1', 'w').writelines('\n'.join(req2))"
+}
+
+extract_vcs(){
+    python -c "
+import re
+x='''${1}'''
+print ' '.join(re.findall(r'((?:git|hg)\+https?://[^\s]+)', x))"
+}
+
+
+extract_pip(){
+    python -c "
+import re
+regex=r'(?:git|hg)\+\w+:\/{2}[\d\w-]+(\.[\d\w-]+)*(?:(?:\/[^\s/]*))*'
+x='''${1}'''
+print re.sub(regex, '', x)"
+}
+
+
 collect_pip_dependencies(){
     REPOLIST="${1}"
     DEPENDENCIES="${2}"
@@ -230,4 +261,54 @@ collect_pip_dependencies(){
         python${TRAVIS_PYTHON_VERSION} /usr/share/odoo-ci-common/gen_pip_deps ${REQ} ${DEPENDENCIES_FILE}
     done
 }
+
+install_ci_environment(){
+    # Init without download to add odoo remotes
+    git init ${REPO_REQUIREMENTS}/odoo
+    # The following section is not run on Travis because it takes too much time,
+    # which sometimes results in a timeout error
+    if [ ${IS_TRAVIS} != "true" ]; then
+        git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" remote add vauxoo "${ODOO_VAUXOO_REPO}"
+        git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" remote add vauxoo-dev "${ODOO_VAUXOO_DEV_REPO}"
+        git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" remote add odoo "${ODOO_ODOO_REPO}"
+        git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" remote add oca "${ODOO_OCA_REPO}"
+
+        # Download the cached branches to avoid the download by each build
+        for version in ${VERSION} 'master'; do
+            git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" fetch vauxoo ${version} --depth=10
+            git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" fetch odoo ${version} --depth=10
+        done
+        git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" fetch oca 11.0 --depth=10
+
+        # Clean
+        git --git-dir="${REPO_REQUIREMENTS}/odoo/.git" gc --aggressive
+    fi
+
+    # Clone tools
+    git_clone_copy "${GIST_VAUXOO_REPO}" "master" "" "${REPO_REQUIREMENTS}/tools/gist-vauxoo"
+    ln -s "${REPO_REQUIREMENTS}/tools" "${HOME}/tools"
+    git_clone_copy "${MQT_REPO}" "master" "" "${REPO_REQUIREMENTS}/linit_hook"
+    git_clone_copy "${PYLINT_REPO}" "master" "conf/pylint_vauxoo_light.cfg" "${REPO_REQUIREMENTS}/linit_hook/travis/cfg/travis_run_pylint.cfg"
+    git_clone_copy "${PYLINT_REPO}" "master" "conf/pylint_vauxoo_light_pr.cfg" "${REPO_REQUIREMENTS}/linit_hook/travis/cfg/travis_run_pylint_pr.cfg"
+    git_clone_copy "${PYLINT_REPO}" "master" "conf/pylint_vauxoo_light_beta.cfg" "${REPO_REQUIREMENTS}/linit_hook/travis/cfg/travis_run_pylint_beta.cfg"
+    git_clone_copy "${PYLINT_REPO}" "master" "conf/pylint_vauxoo_light_vim.cfg" "${REPO_REQUIREMENTS}/linit_hook/travis/cfg/travis_run_pylint_vim.cfg"
+    git_clone_copy "${PYLINT_REPO}" "master" "conf/.jslintrc" "${REPO_REQUIREMENTS}/linit_hook/travis/cfg/.jslintrc"
+    ln -sf ${REPO_REQUIREMENTS}/linit_hook/git/* /usr/share/git-core/templates/hooks/
+
+    # Create virtual environments for all installed Python versions
+    echo "Creating a virtualenv using python${TRAVIS_PYTHON_VERSION}"
+    python${TRAVIS_PYTHON_VERSION} -m virtualenv --system-site-packages ${REPO_REQUIREMENTS}/virtualenv/python${TRAVIS_PYTHON_VERSION}
+    # Install coverage in the virtual environment
+    # Please don't remove it because emit errors from other environments
+    source ${REPO_REQUIREMENTS}/virtualenv/python${TRAVIS_PYTHON_VERSION}/bin/activate
+    pip install --force-reinstall --upgrade coverage --src .
+
+    # Execute travis_install_nightly
+    echo "Installing the linit pip requirements using python${TRAVIS_PYTHON_VERSION}"
+    LINT_CHECK=1 TESTS=0 ${REPO_REQUIREMENTS}/linit_hook/travis/travis_install_nightly
+    pip install --no-binary pycparser -r ${REPO_REQUIREMENTS}/linit_hook/requirements.txt
+    deactivate
+
+}
+
 
