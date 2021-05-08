@@ -6,10 +6,26 @@ set -e
 # We need some functions from the common repository
 source /usr/share/odoo-ci-common/library.sh
 
+# We will have the codename variable available 
+source /etc/lsb-release
+
+
+# ppa sources
+VIM_PPA_REPO="deb http://ppa.launchpad.net/jonathonf/vim/ubuntu ${DISTRIB_CODENAME} main"
+VIM_PPA_KEY="https://keyserver.ubuntu.com/pks/lookup?fingerprint=on&op=get&search=0x4AB0F789CBA31744CC7DA76A8CF63AD3F06FC659"
+
+VIM_OPENERP_REPO="https://github.com/vauxoo/vim-openerp.git"
+VIM_WAKATIME_REPO="https://github.com/wakatime/vim-wakatime.git"
+VIM_YOUCOMPLETEME_REPO="https://github.com/Valloric/YouCompleteMe.git"
+VIM_JEDI_REPO="https://github.com/davidhalter/jedi-vim.git"
+SPF13_REPO="https://github.com/spf13/spf13-vim.git"
+
+
 # Let's add the vim ppa for having a more up-to-date vim
 add_custom_aptsource "${VIM_PPA_REPO}" "${VIM_PPA_KEY}"
 
 # Upgrade & configure vim
+apt update 
 apt install vim --only-upgrade
 # Get vim version
 VIM_VERSION=$(dpkg -s vim | grep Version | sed -n 's/.*\([0-9]\+\.[0-9]\+\)\..*/\1/p' | sed -r 's/\.//g')
@@ -107,38 +123,4 @@ let g:spf13_bundle_groups = ['general', 'writing', 'odoovim', 'wakatime',
                            \ 'python', 'javascript', 'html',
                            \ 'misc']
 EOF
-
-# Configure shell, shell colors & shell completion
-chsh --shell /bin/bash root
-git_clone_copy "${HUB_REPO}" "master" "etc/hub.bash_completion.sh" "/etc/bash_completion.d/"
-
-cat >> ~/.bashrc << 'EOF'
-Purple="\[\033[0;35m\]"
-BIPurple="\[\033[1;95m\]"
-Color_Off="\[\033[0m\]"
-PathShort="\w"
-UserMachine="$BIPurple[\u@$Purple\h]"
-GREEN_WOE="\001\033[0;32m\002"
-RED_WOE="\001\033[0;91m\002"
-git_ps1_style(){
-    local git_branch="$(__git_ps1 2>/dev/null)";
-    local git_ps1_style="";
-    if [ -n "$git_branch" ]; then
-        if [ -n "$GIT_STATUS" ]; then
-            (git diff --quiet --ignore-submodules HEAD 2>/dev/null)
-            local git_changed=$?
-            if [ "$git_changed" == 0 ]; then
-                git_ps1_style=$GREEN_WOE;
-            else
-                git_ps1_style=$RED_WOE;
-            fi
-        fi
-        git_ps1_style=$git_ps1_style$git_branch
-    fi
-    echo -e "$git_ps1_style"
-}
-PS1=$UserMachine$Color_Off$PathShort\$\\n"\$(git_ps1_style)"$Color_Off\$" "
-EOF
-
-
 
