@@ -136,6 +136,7 @@ install_pyflame(){
 }
 
 install_tmux(){
+    echo "Installing Tmux"
     git clone -b 2.8 --single-branch --depth=1 https://github.com/tmux/tmux.git /tmp/tmux
     apt-get install -y libevent-dev
     (cd /tmp/tmux && \
@@ -144,6 +145,11 @@ install_tmux(){
         make install
     )
     rm -rf /tmp/tmux
+    cat >> /etc/tmux.conf << EOF
+# tmux - Set lower history limit to save RAM memory
+set -g history-limit 500
+EOF
+
 }
 
 install_py37(){
@@ -308,7 +314,55 @@ install_ci_environment(){
     LINT_CHECK=1 TESTS=0 ${REPO_REQUIREMENTS}/linit_hook/travis/travis_install_nightly
     pip install --no-binary pycparser -r ${REPO_REQUIREMENTS}/linit_hook/requirements.txt
     deactivate
-
 }
 
+clean_image(){
+    echo "Doing the final clean up"
+    find /usr -name "*.pyc" -print0 | xargs -0r rm -rf
+    find /var/cache/apt -type f -print0 | xargs -0r rm -rf
+    find /var/cache/debconf -type f -print0 | xargs -0r rm -rf
+    find /usr/share/man -type f -print0 | xargs -0r rm -rf
+    find /usr/share/doc -type f -print0 | xargs -0r rm -rf
+    find /usr/share/locale -type f -print0 | xargs -0r rm -rf
 
+    rm -rf /tmp/*
+    find /var/tmp -type f -print0 | xargs -0r rm -rf
+    find /var/log -type f -print0 | xargs -0r rm -rf
+    find /var/lib/apt/lists -type f -print0 | xargs -0r rm -rf
+}
+
+install_rvm(){
+    echo "Installing RVM"
+    imported_gpg=""
+    for i in `seq 3`; do
+        echo "Downloading mpapis.asc, try #${i}"
+        curl -sSL https://rvm.io/mpapis.asc -o /tmp/mpapis.asc || true
+        echo "Importing GPG mpapis.asc"
+        if gpg --import --lock-never /tmp/mpapis.asc ; then
+            imported_gpg="true"
+            break
+        fi
+        echo "Error importing GPG. GPG file content:"
+        cat /tmp/mpapis.asc || true
+        sleep 5
+    done
+    if [ ! $imported_gpg ]; then
+        echo "Could not import downloaded GPG key after ${i} tries, falling back to cached file"
+        gpg --import --lock-never /tmp/odoo-shippable/keys/mpapis.asc
+    fi
+
+    echo "Downloading rvm-installer"
+    curl -sSL https://raw.githubusercontent.com/wayneeseguin/rvm/stable/binscripts/rvm-installer -o /tmp/rvm-installer
+    echo "Running rvm-installer"
+    bash /tmp/rvm-installer 1.29.4 --ruby
+    echo "Usermod rvm odoo"
+    usermod -a -G rvm odoo
+
+    cat >> /etc/bash.bashrc << EOF
+
+# Load RVM into a shell session *as a function*
+source "/usr/local/rvm/scripts/rvm"
+
+EOF
+
+}
